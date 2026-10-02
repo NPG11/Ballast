@@ -107,6 +107,10 @@ def build_server(app: Ballast | None = None, user_id: str | None = None) -> MCPS
         p = app.store.get_proposal(proposal_id)
         if p is None or p.user_id != user:
             raise ToolError(f"No proposal called {proposal_id}.")
+        if p.status.value == "superseded":
+            raise ToolError(f"{proposal_id} was replaced by a newer proposal. Use the latest one.")
+        if p.status.value != "awaiting_approval":
+            raise ToolError(f"{proposal_id} is {p.status.value.replace('_', ' ')}, so it can't be executed.")
         lines = [f"{t.side.value.upper()} ${t.notional:,.2f} {t.symbol}" for t in p.trades]
         return Elicit(f"Confirm paper rebalance {proposal_id}:\n" + "\n".join(lines)
                       + "\nPaper trading only.", Confirm)

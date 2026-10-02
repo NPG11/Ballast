@@ -1,0 +1,30 @@
+warning: in the working copy of '.env.example', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'adapters/alpaca.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'adapters/broker.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'adapters/fake.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/__init__.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/analysis.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/audit.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/categories.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/guardrails.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/models.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/policy.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/proposals.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'engine/rebalance.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'mcp_server/server.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/loop.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts/seed_alpaca.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'service/ballast.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_engine.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_mcp.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_service.py', LF will be replaced by CRLF the next time Git touches it
+ engine/__init__.py    |  2 [32m+[m[31m-[m
+ engine/proposals.py   | 19 [32m+++++++++++++++++++[m
+ mcp_server/server.py  |  4 [32m++++[m
+ service/ballast.py    | 12 [32m+++++++++++[m[31m-[m
+ tests/test_mcp.py     | 18 [32m++++++++++++++++++[m
+ tests/test_service.py | 41 [32m+++++++++++++++++++++++++++++++++++++++++[m
+ 6 files changed, 94 insertions(+), 2 deletions(-)

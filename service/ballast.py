@@ -12,7 +12,7 @@ from typing import Callable
 from adapters.broker import FAILED, FILLED, Broker
 from engine import (AuditLog, Confirmation, Proposal, Rules, RulesError, Side, Status,
                     UnclassifiedHoldingError, approve, check_drift, check_trades, compute_allocation,
-                    create_proposal, pct, plan_rebalance, reject, review_rules_change,
+                    create_proposal, pct, plan_rebalance, reject, review_rules_change, supersede,
                     validate_for_execution)
 
 
@@ -34,6 +34,11 @@ class MemoryStore:
 
     def save_proposal(self, proposal: Proposal) -> None:
         self.proposals[proposal.id] = proposal
+
+    def open_proposals(self, user_id: str) -> list[Proposal]:
+        """Proposals for this user that are still awaiting approval or approved."""
+        return [p for p in self.proposals.values()
+                if p.user_id == user_id and p.status in (Status.AWAITING_APPROVAL, Status.APPROVED)]
 
 
 def _weights(values: dict[str, Decimal], total: Decimal) -> dict[str, str]:
@@ -150,6 +155,11 @@ class Ballast:
                     "trades": [_trade_dict(t) for t in plan.trades]}
 
         proposal = create_proposal(user_id, plan.trades, portfolio, rules)
+        # Only one open plan at a time: close any older one and say why in the log.
+        for old in self.store.open_proposals(user_id):
+            if supersede(old):
+                self.store.save_proposal(old)
+                self.audit.record(user_id, "proposal_superseded", old.id, replaced_by=proposal.id)
         self.store.save_proposal(proposal)
         self.audit.record(user_id, "proposal_created", proposal.id,
                           trades=[_trade_dict(t) for t in plan.trades])

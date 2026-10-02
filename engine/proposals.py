@@ -2,6 +2,9 @@
 
 Lifecycle:  AWAITING_APPROVAL -> APPROVED -> EXECUTING -> EXECUTED
                      or -> EXPIRED / REJECTED / REFUSED (revalidation failed)
+                     or -> SUPERSEDED (a newer proposal replaced it)
+
+Only one proposal per user can be open (awaiting approval or approved) at a time.
 """
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ class Status(str, Enum):
     REJECTED = "rejected"
     EXPIRED = "expired"
     REFUSED = "refused"
+    SUPERSEDED = "superseded"   # replaced by a newer proposal
 
 
 def portfolio_fingerprint(portfolio: Portfolio) -> str:
@@ -98,10 +102,25 @@ def validate_for_execution(proposal: Proposal, user_id: str, current_portfolio: 
     return errors
 
 
+OPEN = (Status.AWAITING_APPROVAL, Status.APPROVED)
+
+
+def supersede(proposal: Proposal) -> bool:
+    """Close an open proposal because a newer one replaces it. Returns True if it was open."""
+    if proposal.status in OPEN:
+        proposal.status = Status.SUPERSEDED
+        return True
+    return False
+
+
 def _basic_checks(proposal: Proposal, user_id: str, now: datetime) -> list[str]:
     errors = []
     if proposal.user_id != user_id:
         errors.append("This proposal belongs to a different user.")
+        return errors
+    if proposal.status == Status.SUPERSEDED:
+        errors.append("This proposal was replaced by a newer one. Use the latest proposal.")
+        return errors
     if now > proposal.expires_at:
         if proposal.status in (Status.AWAITING_APPROVAL, Status.APPROVED):
             proposal.status = Status.EXPIRED

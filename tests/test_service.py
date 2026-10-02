@@ -124,3 +124,44 @@ def test_retrying_an_order_does_not_duplicate_it():
     t = Trade("BND", Side.BUY, D("100"), "bonds")
     assert broker.submit_order(t, "BL-1-0") == broker.submit_order(t, "BL-1-0")
     assert len(broker.orders) == 1
+
+
+def test_new_plan_supersedes_old_one():
+    _, app = setup()
+    first = app.plan_rebalance("neel")["proposal_id"]
+    second = app.plan_rebalance("neel")["proposal_id"]
+    assert first != second
+    assert app.store.get_proposal(first).status.value == "superseded"
+    assert [p.id for p in app.store.open_proposals("neel")] == [second]
+    events = [(e["event"], e["proposal_id"]) for e in app.history("neel")]
+    assert events == [("proposal_created", first), ("proposal_superseded", first),
+                      ("proposal_created", second)]
+    assert app.history("neel")[1]["replaced_by"] == second
+
+
+def test_superseded_proposal_cannot_be_approved_or_executed():
+    broker, app = setup()
+    first = app.plan_rebalance("neel")["proposal_id"]
+    app.approve("neel", first)                      # approved, then replaced
+    app.plan_rebalance("neel")
+    res = app.approve("neel", first)
+    assert res["status"] == "error" and "replaced" in res["errors"][0]
+    assert app.execute("neel", first)["status"] == "refused"
+    assert broker.orders == {}
+
+
+def test_superseding_only_touches_the_same_user():
+    _, app = setup()
+    app.store.save_rules("maya", RULES)
+    mine = app.plan_rebalance("neel")["proposal_id"]
+    app.plan_rebalance("maya")
+    assert app.store.get_proposal(mine).status.value == "awaiting_approval"
+
+
+def test_finished_proposals_are_not_superseded():
+    _, app = setup()
+    pid = app.plan_rebalance("neel")["proposal_id"]
+    app.approve("neel", pid)
+    app.execute("neel", pid)
+    app.plan_rebalance("neel")                      # portfolio is on track now, but even if not:
+    assert app.store.get_proposal(pid).status.value == "executed"

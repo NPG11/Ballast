@@ -170,3 +170,21 @@ def test_targets_must_add_to_100():
         async with Client(server, elicitation_callback=user_says(True)) as c:
             return await call(c, "preview_target_allocation", {"targets_percent": {"us_stocks": 70, "bonds": 40}})
     assert run(go())["status"] == "invalid"
+
+
+def test_older_proposal_is_superseded_through_mcp():
+    yes = user_says(True)
+
+    async def go():
+        broker, app, server = make()
+        async with Client(server, elicitation_callback=yes) as c:
+            first = (await call(c, "plan_rebalance"))["proposal_id"]
+            second = (await call(c, "plan_rebalance"))["proposal_id"]
+            old = await c.call_tool("execute_rebalance", {"proposal_id": first})
+            log = await call(c, "get_activity")
+            return broker, old, log, first, second
+    broker, old, log, first, second = run(go())
+    assert old.is_error and "replaced" in old.content[0].text
+    assert yes.asked == []            # the user was never bothered with a dead proposal
+    assert broker.orders == {}
+    assert ("proposal_superseded", first) in [(e["event"], e["proposal_id"]) for e in log["events"]]

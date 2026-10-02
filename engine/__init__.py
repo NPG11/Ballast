@@ -6,5 +6,5 @@ from .rebalance import plan_rebalance
 from .guardrails import check_trades
 from .policy import Confirmation, review_rules_change
 from .proposals import (Proposal, Status, approve, create_proposal, portfolio_fingerprint,
-                        reject, validate_for_execution)
+                        reject, supersede, validate_for_execution)
 from .audit import AuditLog
