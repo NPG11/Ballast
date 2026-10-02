@@ -109,13 +109,6 @@ class Rules:
             raise RulesError("Minimum trade size can't be negative.")
 
         c = self.constraints
-        if c.max_category_pct is not None:
-            for cat, p in self.targets.items():
-                if cat != CASH and p > c.max_category_pct:
-                    raise RulesError(
-                        f"A {pct(p)} target for {cat.replace('_', ' ')} breaks your "
-                        f"{pct(c.max_category_pct)} cap on any one category."
-                    )
         if c.max_single_stock_pct is not None:
             for cat, sym in self.buy_symbols.items():
                 p = self.targets.get(cat, Decimal("0"))
@@ -123,6 +116,13 @@ class Rules:
                     raise RulesError(
                         f"Putting {pct(p)} into {sym} breaks your {pct(c.max_single_stock_pct)} "
                         f"cap on any single stock."
+                    )
+        if c.max_category_pct is not None:
+            for cat, p in self.targets.items():
+                if cat != CASH and p > c.max_category_pct:
+                    raise RulesError(
+                        f"A {pct(p)} target for {cat.replace('_', ' ')} breaks your "
+                        f"{pct(c.max_category_pct)} cap on any one category."
                     )
 
     @property
