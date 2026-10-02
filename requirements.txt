@@ -1,0 +1,2 @@
+alpaca-py>=0.40
+pytest>=8
