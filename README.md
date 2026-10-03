@@ -18,7 +18,7 @@ READ -> DRIFT -> PLAN -> APPROVE -> REVALIDATE -> EXECUTE -> VERIFY -> AUDIT
 | Broker adapters | `adapters/` | `alpaca.py` (paper trading, forced) and `fake.py` (offline tests). |
 | Service | `service/ballast.py` | The full loop the MCP tools call. |
 | MCP server | `mcp_server/server.py` | 9 MCP tools over Streamable HTTP. Works with MCP 2025-11-25 and 2026-07-28. |
-| Agent | `agent/` | *(next)* Bedrock agent standing in for Alexa+. |
+| Agent | `agent/` | Bedrock agent standing in for Alexa+: sends your words and the MCP tools to Claude, runs the tools it picks, hands confirmations to you. |
 | Demo site | `web/` | *(next)* |
 
 ### What the AI can and cannot do
@@ -71,3 +71,14 @@ BALLAST_BROKER=alpaca python -m mcp_server.server # your Alpaca paper account
 
 Test it visually with MCP Inspector (needs Node.js): `npx @modelcontextprotocol/inspector`,
 then connect to `http://127.0.0.1:8000/mcp` with transport "Streamable HTTP".
+
+## Talk to it (Bedrock agent)
+
+Needs AWS credentials with Bedrock access (`aws configure`).
+
+```bash
+python -m scripts.chat --local --trace     # in-process server + fake broker, shows tool calls
+python -m scripts.chat                     # connect to a running MCP server
+```
+
+Model: `BALLAST_MODEL` (default `us.anthropic.claude-haiku-4-5-20251001-v1:0`), region: `AWS_REGION` (default `us-east-1`).
