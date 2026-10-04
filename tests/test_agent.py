@@ -189,3 +189,95 @@ def test_model_errors_do_not_crash_the_chat():
     assert first.error and "ResourceNotFoundException" in first.text
     assert second.error                         # still answering, not crashed
     assert agent.history == []                  # failed turns don't pollute the conversation
+
+
+# ---------- the "tool_use without tool_result" bug ----------
+
+def _valid_for_bedrock(messages):
+    """Every assistant tool request must be followed by a user message with all its results."""
+    for i, m in enumerate(messages):
+        ids = {b["toolUse"]["toolUseId"] for b in m["content"] if "toolUse" in b}
+        if ids:
+            nxt = messages[i + 1] if i + 1 < len(messages) else {"content": []}
+            got = {b["toolResult"]["toolUseId"] for b in nxt["content"] if "toolResult" in b}
+            if not ids <= got:
+                return False
+    return True
+
+
+def test_broken_history_is_repaired_before_the_next_turn():
+    from agent.agent import repair_history
+    broken = [
+        {"role": "user", "content": [{"text": "hi"}]},
+        {"role": "assistant", "content": [{"text": "Hello."}]},
+        {"role": "user", "content": [{"text": "how's my portfolio?"}]},
+        {"role": "assistant", "content": [{"toolUse": {"toolUseId": "x", "name": "get_portfolio", "input": {}}}]},
+        {"role": "user", "content": [{"text": "rebalance me"}]},          # result never arrived
+    ]
+    fixed = repair_history(broken)
+    assert fixed == broken[:2] and _valid_for_bedrock(fixed)
+
+
+def test_interrupted_turn_leaves_no_half_written_history():
+    """Refreshing the page while the confirm card is open used to break the conversation."""
+    gate = asyncio.Event()
+
+    async def slow_confirm(message):
+        await gate.wait()                       # the user never answers...
+        return True
+
+    llm = ScriptedLLM([[("plan_rebalance", {})], _execute_last_proposal, "unused",
+                       "You're at 68% stocks."])
+
+    async def go():
+        broker, server = make()
+        async with BallastAgent(server, llm, slow_confirm) as a:
+            await asyncio.sleep(0)
+            first = asyncio.create_task(a.ask("rebalance and do it"))
+            await asyncio.sleep(0.3)
+            first.cancel()                      # ...because the page was refreshed
+            try:
+                await first
+            except asyncio.CancelledError:
+                pass
+            llm.script = ["Fine, nothing traded."]
+            reply = await a.ask("how's my portfolio?")
+            return broker, a, reply
+    broker, agent, reply = run(go())
+    assert reply.text == "Fine, nothing traded."
+    assert _valid_for_bedrock(llm.calls[-1]["messages"])
+    assert broker.orders == {}
+
+
+def test_a_crashing_tool_becomes_an_error_result():
+    class ExplodingClient:
+        async def call_tool(self, name, args):
+            raise ConnectionError("server went away")
+
+    llm = ScriptedLLM([[("get_portfolio", {})], "The portfolio tool is unavailable."])
+
+    async def go():
+        _, server = make()
+        async with BallastAgent(server, llm, user_answers()) as a:
+            real = a._client
+            a._client = ExplodingClient()
+            reply = await a.ask("how's my portfolio?")
+            a._client = real
+            return reply
+    reply = run(go())
+    assert reply.trace[0]["error"] and "server went away" in reply.trace[0]["output"]["error"]
+    assert _valid_for_bedrock(llm.calls[-1]["messages"])
+
+
+def test_two_turns_at_once_are_run_one_after_the_other():
+    llm = ScriptedLLM([[("get_portfolio", {})], "First.", [("get_rules", {})], "Second."])
+
+    async def go():
+        _, server = make()
+        async with BallastAgent(server, llm, user_answers()) as a:
+            r1, r2 = await asyncio.gather(a.ask("one"), a.ask("two"))
+            return a, r1, r2
+    agent, r1, r2 = run(go())
+    assert (r1.text, r2.text) == ("First.", "Second.")
+    assert all(_valid_for_bedrock(c["messages"]) for c in llm.calls)
+    assert _valid_for_bedrock(agent.history)

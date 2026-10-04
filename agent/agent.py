@@ -53,13 +53,17 @@ def _result_payload(result) -> tuple[Any, bool]:
 
 
 class BallastAgent:
-    def __init__(self, server, llm: LLM, confirm: ConfirmFn, system_prompt: str = SYSTEM_PROMPT):
-        """server: an MCP server URL ("http://127.0.0.1:8000/mcp") or an in-process server."""
+    def __init__(self, server, llm: LLM, confirm: ConfirmFn, system_prompt: str = SYSTEM_PROMPT,
+                 on_event: Callable[[dict], Awaitable[None]] | None = None):
+        """server: an MCP server URL ("http://127.0.0.1:8000/mcp") or an in-process server.
+        on_event: optional callback, called live for every tool call and confirmation (for UIs)."""
         self.server = server
+        self.on_event = on_event
         self.llm = llm
         self.confirm = confirm
         self.system = system_prompt
         self.history: list[dict] = []
+        self._turn_lock = asyncio.Lock()
         self._client: Client | None = None
         self._tools: list[dict] = []
         self.trace: list[dict] = []
@@ -76,35 +80,68 @@ class BallastAgent:
     async def _on_elicit(self, ctx, params):
         """The MCP server wants the USER to confirm something. Ask them, not the model."""
         yes = await self.confirm(params.message)
-        self.trace.append({"event": "user_confirmation", "message": params.message, "answer": yes})
+        await self._emit({"event": "user_confirmation", "message": params.message, "answer": yes})
         return t.ElicitResult(action="accept", content={"confirm": yes})
 
+    async def _emit(self, event: dict) -> None:
+        self.trace.append(event)
+        if self.on_event:
+            await self.on_event(event)
+
     async def ask(self, user_text: str) -> Reply:
-        self.trace = []
-        self.history.append({"role": "user", "content": [{"text": user_text}]})
+        """One user turn. The turn is built separately and only added to the conversation once it
+        finishes, so an interrupted or failed turn can never leave a half-written history behind."""
+        async with self._turn_lock:                 # never two turns at once
+            self.trace = []
+            self.history = repair_history(self.history)
+            turn_msgs: list[dict] = [{"role": "user", "content": [{"text": user_text}]}]
 
-        start = len(self.history) - 1
-        for _ in range(MAX_STEPS):
-            try:
-                turn: ModelTurn = await asyncio.to_thread(self.llm.respond, self.system, self.history, self._tools)
-            except Exception as e:  # model unavailable, access not granted, throttled, network...
-                del self.history[start:]          # forget the failed turn so the next one starts clean
-                return Reply(f"I couldn't reach the AI model: {_short_error(e)}", self.trace, error=True)
-            self.history.append({"role": "assistant", "content": turn.raw_content or [{"text": turn.text}]})
-            if not turn.tool_calls:
-                return Reply(turn.text.strip(), self.trace)
+            for _ in range(MAX_STEPS):
+                try:
+                    turn: ModelTurn = await asyncio.to_thread(
+                        self.llm.respond, self.system, self.history + turn_msgs, self._tools)
+                except Exception as e:  # model unavailable, access not granted, throttled, network...
+                    return Reply(f"I couldn't reach the AI model: {_short_error(e)}", self.trace, error=True)
 
-            results = []
-            for call in turn.tool_calls:
-                result = await self._client.call_tool(call.name, call.input)
-                payload, is_error = _result_payload(result)
-                self.trace.append({"event": "tool_call", "tool": call.name, "input": call.input,
-                                   "output": payload, "error": is_error})
-                results.append({"toolResult": {
-                    "toolUseId": call.id,
-                    "content": [{"json": payload if isinstance(payload, dict) else {"result": payload}}],
-                    "status": "error" if is_error else "success",
-                }})
-            self.history.append({"role": "user", "content": results})
+                turn_msgs.append({"role": "assistant", "content": turn.raw_content or [{"text": turn.text}]})
+                if not turn.tool_calls:
+                    self.history += turn_msgs
+                    return Reply(turn.text.strip(), self.trace)
 
-        return Reply("Sorry, that took too many steps. Could you ask again more simply?", self.trace)
+                results = []
+                for call in turn.tool_calls:
+                    try:
+                        payload, is_error = _result_payload(await self._client.call_tool(call.name, call.input))
+                    except Exception as e:  # tool crashed or connection dropped: tell the model, don't die
+                        payload, is_error = {"error": f"The tool failed: {_short_error(e)}"}, True
+                    await self._emit({"event": "tool_call", "tool": call.name, "input": call.input,
+                                      "output": payload, "error": is_error})
+                    results.append({"toolResult": {
+                        "toolUseId": call.id,
+                        "content": [{"json": payload if isinstance(payload, dict) else {"result": payload}}],
+                        "status": "error" if is_error else "success",
+                    }})
+                turn_msgs.append({"role": "user", "content": results})
+
+            return Reply("Sorry, that took too many steps. Could you ask again more simply?", self.trace)
+
+
+def repair_history(history: list[dict]) -> list[dict]:
+    """Keep the conversation valid for Bedrock: every assistant tool request must be followed by a
+    user message with a result for each one. Anything after the first broken spot is dropped."""
+    for i, msg in enumerate(history):
+        if msg["role"] != "assistant":
+            continue
+        ids = {b["toolUse"]["toolUseId"] for b in msg["content"] if "toolUse" in b}
+        if not ids:
+            continue
+        nxt = history[i + 1] if i + 1 < len(history) else None
+        got = {b["toolResult"]["toolUseId"] for b in (nxt or {}).get("content", []) if "toolResult" in b}
+        if nxt is None or nxt["role"] != "user" or not ids <= got:
+            # cut back to the user message that started this broken turn
+            cut = i
+            while cut > 0 and not (history[cut - 1]["role"] == "user"
+                                   and any("text" in b for b in history[cut - 1]["content"])):
+                cut -= 1
+            return history[:max(cut - 1, 0)]
+    return history

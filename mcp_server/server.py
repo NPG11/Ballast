@@ -64,7 +64,7 @@ class Confirm(BaseModel):
 
 
 
-def _make_broker():
+def make_broker():
     kind = os.environ.get("BALLAST_BROKER", "fake").lower()
     if kind == "alpaca":
         from adapters.alpaca import AlpacaBroker
@@ -74,8 +74,11 @@ def _make_broker():
     return FakeBroker({"VTI": ("30", "280"), "BND": ("25", "80")}, cash="2000")
 
 
+_make_broker = make_broker  # old name
+
+
 def build_server(app: Ballast | None = None, user_id: str | None = None) -> MCPServer:
-    app = app or Ballast(_make_broker())
+    app = app or Ballast(make_broker())
     user = user_id or os.environ.get("BALLAST_USER", "demo")
     if app.store.get_rules(user) is None:
         app.store.save_rules(user, DEMO_RULES)

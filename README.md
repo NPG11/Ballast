@@ -19,7 +19,7 @@ READ -> DRIFT -> PLAN -> APPROVE -> REVALIDATE -> EXECUTE -> VERIFY -> AUDIT
 | Service | `service/ballast.py` | The full loop the MCP tools call. |
 | MCP server | `mcp_server/server.py` | 9 MCP tools over Streamable HTTP. Works with MCP 2025-11-25 and 2026-07-28. |
 | Agent | `agent/` | Bedrock agent standing in for Alexa+: sends your words and the MCP tools to Claude, runs the tools it picks, hands confirmations to you. |
-| Demo site | `web/` | *(next)* |
+| Demo site | `web/` | Simulated Alexa+ experience in the browser: voice in and out, live tool timeline, confirm card. |
 
 ### What the AI can and cannot do
 
@@ -82,3 +82,14 @@ python -m scripts.chat                     # connect to a running MCP server
 ```
 
 Model: `BALLAST_MODEL` (default `us.anthropic.claude-haiku-4-5-20251001-v1:0`), region: `AWS_REGION` (default `us-east-1`).
+
+## Demo site
+
+```bash
+python -m web.server                       # http://127.0.0.1:8080, Claude on Bedrock, demo portfolio
+BALLAST_LLM=offline python -m web.server   # no AWS needed: keyword rules instead of Claude
+BALLAST_BROKER=alpaca python -m web.server # your Alpaca paper account
+```
+
+Voice input needs Chrome or Edge. The horizon tilts with your biggest drift and settles level once
+every category is back inside your limit. Trades only run after you answer the confirm card.

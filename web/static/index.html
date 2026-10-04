@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ballast: keep your portfolio level</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/app.css?v=4">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%230B2239' stroke='%234FD1E8' stroke-width='3'/><path d='M5 18h22' stroke='%234FD1E8' stroke-width='3'/></svg>">
+</head>
+<body data-state="idle">
+  <div class="lightbar" aria-hidden="true"><span></span></div>
+
+  <header class="top">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <circle cx="16" cy="16" r="13" />
+        <path d="M5.5 18.5h21" />
+      </svg>
+      <span class="brand-name">Ballast</span>
+    </div>
+    <p class="mode">Simulated Alexa+ experience <strong class="paper">Paper trading</strong></p>
+  </header>
+
+  <main class="stage">
+    <section class="assistant" aria-label="Assistant">
+      <p class="heard" id="heard" aria-live="polite">Ask about your portfolio to get started.</p>
+      <p class="caption" id="caption" aria-live="polite">I keep your paper portfolio on the targets you set, and I only trade when you say so.</p>
+
+      <div class="instrument">
+        <figure class="horizon" id="horizon" role="img" aria-label="Portfolio balance">
+          <svg viewBox="0 0 200 200">
+            <defs>
+              <clipPath id="porthole"><circle cx="100" cy="100" r="86" /></clipPath>
+              <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#4FD1E8" stop-opacity=".55"/>
+                <stop offset="1" stop-color="#1A4268" stop-opacity=".95"/>
+              </linearGradient>
+            </defs>
+            <circle class="rim" cx="100" cy="100" r="94" />
+            <g clip-path="url(#porthole)">
+              <rect class="sky" x="0" y="0" width="200" height="200" />
+              <g class="tilt" id="tilt">
+                <rect x="-60" y="100" width="320" height="200" fill="url(#water)" />
+                <line class="waterline" x1="-60" y1="100" x2="260" y2="100" />
+              </g>
+              <line class="level-ref" x1="34" y1="100" x2="62" y2="100" />
+              <line class="level-ref" x1="138" y1="100" x2="166" y2="100" />
+            </g>
+            <g class="ticks">
+              <line x1="100" y1="8" x2="100" y2="18" />
+              <line x1="8" y1="100" x2="18" y2="100" />
+              <line x1="182" y1="100" x2="192" y2="100" />
+            </g>
+          </svg>
+          <figcaption id="horizon-label">Reading your portfolio…</figcaption>
+        </figure>
+
+        <div class="allocation" id="allocation" aria-label="Allocation by category">
+          <div class="total"><span id="total">—</span><small id="total-note">paper portfolio</small></div>
+          <ul id="rows"></ul>
+        </div>
+      </div>
+
+      <div class="ask">
+        <div class="chips" id="chips">
+          <button type="button" data-say="How's my portfolio?">How's my portfolio?</button>
+          <button type="button" data-say="Rebalance me">Rebalance me</button>
+          <button type="button" data-say="What have you done today?">What have you done today?</button>
+          <button type="button" data-say="What should I invest in?">What should I invest in?</button>
+        </div>
+        <form class="composer" id="composer" autocomplete="off">
+          <button type="button" class="mic" id="mic" aria-label="Speak">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </button>
+          <label class="sr-only" for="text">Message Ballast</label>
+          <input id="text" name="text" placeholder="Say or type a request" />
+          <button type="submit" class="send" id="send">Send</button>
+          <button type="button" class="voice-out" id="voice-out" aria-pressed="true" title="Read replies aloud">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg>
+            <span class="sr-only">Read replies aloud</span>
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <aside class="hood" aria-label="Under the hood">
+      <div class="hood-head">
+        <h2>Under the hood</h2>
+        <p>Every tool the AI calls on the Ballast MCP server, live.</p>
+      </div>
+      <ol class="timeline" id="timeline">
+        <li class="empty">Nothing yet. Ask a question and each tool call will appear here.</li>
+      </ol>
+      <div class="voice-settings">
+        <label>Voice
+          <select id="voice-pick"><option>Loading voices…</option></select>
+        </label>
+        <label>Speed
+          <select id="speed-pick">
+            <option value="1">Normal</option>
+            <option value="1.15">Brisk</option>
+            <option value="1.3" selected>Fast</option>
+            <option value="1.5">Faster</option>
+          </select>
+        </label>
+      </div>
+      <footer class="hood-foot">
+        <span id="runtime">—</span>
+        <button type="button" id="reset" class="link">Reset demo portfolio</button>
+      </footer>
+    </aside>
+  </main>
+
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+    <h2 id="sheet-title">Confirm paper rebalance</h2>
+    <p class="sheet-sub">Ballast is asking you directly. The AI can't approve this for you.</p>
+    <ul class="trades" id="sheet-trades"></ul>
+    <p class="sheet-note">Simulated money in your paper account. Sells run first, then buys.</p>
+    <div class="sheet-actions">
+      <button type="button" class="secondary" id="decline">Don't trade</button>
+      <button type="button" class="primary" id="approve">Place paper orders</button>
+    </div>
+  </section>
+
+  <script src="/static/app.js?v=4"></script>
+</body>
+</html>
