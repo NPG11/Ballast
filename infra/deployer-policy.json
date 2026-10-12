@@ -1,0 +1,45 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BallastLambda",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": "arn:aws:lambda:*:*:function:ballast*"
+    },
+    {
+      "Sid": "UseWebAdapterLayer",
+      "Effect": "Allow",
+      "Action": "lambda:GetLayerVersion",
+      "Resource": "arn:aws:lambda:*:753240598075:layer:LambdaAdapterLayer*"
+    },
+    {
+      "Sid": "BallastTable",
+      "Effect": "Allow",
+      "Action": "dynamodb:*",
+      "Resource": "arn:aws:dynamodb:*:*:table/ballast*"
+    },
+    {
+      "Sid": "BallastSecret",
+      "Effect": "Allow",
+      "Action": "secretsmanager:*",
+      "Resource": "arn:aws:secretsmanager:*:*:secret:ballast/*"
+    },
+    {
+      "Sid": "BallastRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:GetRole", "iam:DeleteRole", "iam:TagRole",
+        "iam:PutRolePolicy", "iam:GetRolePolicy", "iam:DeleteRolePolicy", "iam:ListRolePolicies",
+        "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/ballast*"
+    },
+    {
+      "Sid": "ReadLogs",
+      "Effect": "Allow",
+      "Action": ["logs:DescribeLogGroups", "logs:DescribeLogStreams", "logs:FilterLogEvents", "logs:GetLogEvents"],
+      "Resource": "*"
+    }
+  ]
+}

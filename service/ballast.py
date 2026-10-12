@@ -10,35 +10,11 @@ from decimal import Decimal
 from typing import Callable
 
 from adapters.broker import FAILED, FILLED, Broker
+from store.memory import MemoryStore  # noqa: F401  (re-exported: older code imports it from here)
 from engine import (AuditLog, Confirmation, Proposal, Rules, RulesError, Side, Status,
                     UnclassifiedHoldingError, approve, check_drift, check_trades, compute_allocation,
                     create_proposal, pct, plan_rebalance, reject, review_rules_change, supersede,
                     validate_for_execution)
-
-
-class MemoryStore:
-    """In-memory storage. Swapped for DynamoDB later with the same methods."""
-
-    def __init__(self):
-        self.rules: dict[str, Rules] = {}
-        self.proposals: dict[str, Proposal] = {}
-
-    def get_rules(self, user_id: str) -> Rules | None:
-        return self.rules.get(user_id)
-
-    def save_rules(self, user_id: str, rules: Rules) -> None:
-        self.rules[user_id] = rules
-
-    def get_proposal(self, proposal_id: str) -> Proposal | None:
-        return self.proposals.get(proposal_id)
-
-    def save_proposal(self, proposal: Proposal) -> None:
-        self.proposals[proposal.id] = proposal
-
-    def open_proposals(self, user_id: str) -> list[Proposal]:
-        """Proposals for this user that are still awaiting approval or approved."""
-        return [p for p in self.proposals.values()
-                if p.user_id == user_id and p.status in (Status.AWAITING_APPROVAL, Status.APPROVED)]
 
 
 def _weights(values: dict[str, Decimal], total: Decimal) -> dict[str, str]:
@@ -55,7 +31,7 @@ class Ballast:
                  poll_interval: float = 1.0, sleep: Callable[[float], None] = time.sleep):
         self.broker = broker
         self.store = store or MemoryStore()
-        self.audit = audit or AuditLog()
+        self.audit = audit or getattr(self.store, "audit", None) or AuditLog()
         self.overrides = overrides
         self.fill_timeout = fill_timeout
         self.poll_interval = poll_interval

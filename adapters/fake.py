@@ -51,6 +51,34 @@ class FakeBroker:
     def get_order(self, order_id: str) -> OrderInfo:
         return self.orders[order_id]
 
+    # ---- save / load, so a demo portfolio can live in a database between requests ----
+
+    def to_state(self) -> dict:
+        return {
+            "qty": {s: str(q) for s, q in self.qty.items()},
+            "prices": {s: str(p) for s, p in self.prices.items()},
+            "cash": str(self.cash),
+            "market_open": self.market_open,
+            "orders": {oid: {"symbol": o.symbol, "side": o.side, "status": o.status,
+                             "filled": str(o.filled_notional),
+                             "requested": None if o.requested_notional is None else str(o.requested_notional)}
+                       for oid, o in self.orders.items()},
+            "by_client_id": dict(self._by_client_id),
+            "next_id": len(self.orders) + 1,
+        }
+
+    @classmethod
+    def from_state(cls, state: dict) -> "FakeBroker":
+        b = cls({}, cash=state["cash"], market_open=state.get("market_open", True))
+        b.qty = {s: Decimal(q) for s, q in state["qty"].items()}
+        b.prices = {s: Decimal(p) for s, p in state["prices"].items()}
+        b.orders = {oid: OrderInfo(oid, o["symbol"], o["side"], o["status"], Decimal(o["filled"]),
+                                   None if o["requested"] is None else Decimal(o["requested"]))
+                    for oid, o in state.get("orders", {}).items()}
+        b._by_client_id = dict(state.get("by_client_id", {}))
+        b._ids = itertools.count(state.get("next_id", len(b.orders) + 1))
+        return b
+
     def _fill(self, trade: Trade) -> None:
         price = self.prices.setdefault(trade.symbol, Decimal("100"))
         shares = trade.notional / price

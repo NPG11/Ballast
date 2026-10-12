@@ -1,4 +1,2 @@
-alpaca-py>=0.40
 boto3>=1.35
 mcp>=2.2
-pytest>=8

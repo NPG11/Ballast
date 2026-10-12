@@ -15,11 +15,13 @@ READ -> DRIFT -> PLAN -> APPROVE -> REVALIDATE -> EXECUTE -> VERIFY -> AUDIT
 | Layer | Folder | Job |
 |---|---|---|
 | Engine | `engine/` | Pure, deterministic logic: allocation, drift, rebalance plans, guardrails, proposals, rules policy, audit log. No AI, no network. |
-| Broker adapters | `adapters/` | `alpaca.py` (paper trading, forced) and `fake.py` (offline tests). |
+| Broker adapters | `adapters/` | `alpaca.py` (Alpaca REST API, paper trading forced), `fake.py` (offline tests), `stored.py` (a demo portfolio per visitor, kept in the store). |
+| Storage | `store/` | Rules, proposals, audit log, sessions and confirm cards. DynamoDB when deployed, memory locally. |
 | Service | `service/ballast.py` | The full loop the MCP tools call. |
 | MCP server | `mcp_server/server.py` | 9 MCP tools over Streamable HTTP. Works with MCP 2025-11-25 and 2026-07-28. |
 | Agent | `agent/` | Bedrock agent standing in for Alexa+: sends your words and the MCP tools to Claude, runs the tools it picks, hands confirmations to you. |
-| Demo site | `web/` | Simulated Alexa+ experience in the browser: voice in and out, live tool timeline, confirm card. |
+| Demo site | `web/` | Simulated Alexa+ experience in the browser: voice in and out, live tool timeline, confirm card. Also serves the MCP server at `/mcp`. |
+| Deploy | `infra/` | One-command deploy to AWS Lambda, DynamoDB and Secrets Manager. |
 
 ### What the AI can and cannot do
 
@@ -41,8 +43,8 @@ place an order directly, or trade without an approved proposal.
 ## Run it
 
 ```bash
-pip install -r requirements.txt
-python -m pytest -q                 # 53 tests
+pip install -r requirements-dev.txt
+python -m pytest -q                 # 107 tests
 python -m scripts.loop --fake       # full loop offline
 
 cp .env.example .env                # add your Alpaca PAPER keys, then export them
@@ -81,7 +83,7 @@ python -m scripts.chat --local --trace     # in-process server + fake broker, sh
 python -m scripts.chat                     # connect to a running MCP server
 ```
 
-Model: `BALLAST_MODEL` (default `us.anthropic.claude-haiku-4-5-20251001-v1:0`), region: `AWS_REGION` (default `us-east-1`).
+Model: `BALLAST_MODEL` (default `us.anthropic.claude-haiku-4-5-20251001-v1:0`), region: `AWS_REGION`.
 
 ## Demo site
 
@@ -93,3 +95,33 @@ BALLAST_BROKER=alpaca python -m web.server # your Alpaca paper account
 
 Voice input needs Chrome or Edge. The horizon tilts with your biggest drift and settles level once
 every category is back inside your limit. Trades only run after you answer the confirm card.
+
+## Running on AWS
+
+```
+Browser ──HTTPS──▶ Lambda Function URL (response streaming)
+                    └─ Lambda "ballast" (Python 3.12 + AWS Lambda Web Adapter)
+                        ├─ demo site + Bedrock agent ──▶ Amazon Bedrock (Claude Haiku 4.5)
+                        ├─ MCP server at /mcp (Streamable HTTP, bearer token)
+                        ├─ DynamoDB "ballast": rules, proposals, audit log, sessions, confirm cards
+                        └─ Secrets Manager "ballast/alpaca" ──▶ Alpaca paper trading API
+```
+
+The function keeps no state in memory, so any instance can serve any request. Each visitor gets
+their own session and, in demo mode, their own demo portfolio. A confirm card can be answered on a
+different instance than the conversation waiting for it: the answer goes through DynamoDB with a
+conditional write, so only the card's owner can answer it, and only once. Demo data expires after
+14 days, and a daily turn cap protects the Bedrock bill.
+
+### Deploy
+
+1. Give your IAM user the permissions in `infra/deployer-policy.json` (scoped to resources named `ballast`).
+2. Deploy:
+
+```bash
+python -m infra.deploy --region us-east-2                 # demo portfolio for every visitor
+ALPACA_KEY=... ALPACA_SECRET=... python -m infra.deploy --region us-east-2 --broker alpaca
+python -m infra.deploy --region us-east-2 --destroy       # remove it (add --delete-data for the table and secret)
+```
+
+It prints the site URL, the MCP URL and the MCP token. Running it again updates in place.
