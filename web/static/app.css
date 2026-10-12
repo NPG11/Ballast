@@ -231,6 +231,21 @@ body[data-state="listening"] .mic { box-shadow: 0 0 0 8px rgba(79, 209, 232, .2)
 .trades .sym { font-weight: 600; font-size: 1.1rem; }
 .trades .amt { font-family: var(--display); font-weight: 700; font-size: 1.35rem; }
 .sheet-note { color: var(--mist); font-size: .88rem; margin: 14px 0 22px; }
+.sheet-voice {
+  display: flex; align-items: center; gap: 12px; margin: -8px 0 20px;
+  padding: 10px 14px; border-radius: var(--r-control); background: var(--abyss);
+}
+.sheet-voice[hidden] { display: none; }
+.sheet-voice p { margin: 0; color: var(--foam); font-size: .95rem; }
+.sheet-mic {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--tide); display: grid; place-items: center;
+}
+.sheet-mic svg { width: 20px; height: 20px; fill: none; stroke: var(--foam); stroke-width: 2; }
+.sheet-mic svg rect { fill: var(--foam); }
+.sheet-voice.listening .sheet-mic { background: var(--signal); box-shadow: 0 0 0 6px rgba(79, 209, 232, .2), 0 0 20px var(--signal); }
+.sheet-voice.listening .sheet-mic svg { stroke: var(--abyss); }
+.sheet-voice.listening .sheet-mic svg rect { fill: var(--abyss); }
 .sheet-actions { display: flex; gap: 12px; justify-content: flex-end; }
 .sheet-actions button { border-radius: 999px; padding: 13px 22px; font-weight: 600; cursor: pointer; }
 .secondary { background: transparent; border: 1px solid var(--tide); }

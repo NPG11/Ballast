@@ -157,15 +157,42 @@ function showSheet(ev) {
     li.textContent = ev.message;
     els.trades.appendChild(li);
   }
-  setCaption("Check the card to place the paper orders, or tell me no.", "waiting");
+  setCaption("Say yes to place the paper orders, or no to cancel.", "waiting");
   els.sheet.hidden = false;
   els.backdrop.hidden = false;
   setState("confirming");
-  speak(`Please confirm on screen.`);
+  confirmTries = 0;
   els.approve.focus();
+  if (voiceConfirm) {
+    setSheetVoice("Say “yes” to place the orders, or “no” to cancel.");
+    speak("Say yes to place the orders, or no to cancel.", () => voiceConfirm.listen());
+  } else {
+    speak("Please confirm on screen.");
+  }
+}
+
+// ---------- answering the card by voice ----------
+const SAY_YES = /\b(yes|yeah|yep|yup|sure|approve|approved|confirm|confirmed|go ahead|do it|place (the )?orders?)\b/i;
+const SAY_NO = /\b(no|nope|nah|cancel|stop|don'?t|do not|decline)\b/i;
+let confirmTries = 0;
+let voiceConfirm = null;   // set up below if the browser supports speech recognition
+
+function setSheetVoice(text, listening = false) {
+  const box = $("sheet-voice");
+  box.hidden = false;
+  box.classList.toggle("listening", listening);
+  $("sheet-voice-text").textContent = text;
+}
+
+function readAnswer(text) {
+  const yes = SAY_YES.test(text), no = SAY_NO.test(text);
+  if (yes && !no) return true;
+  if (no && !yes) return false;
+  return null;                      // unclear, or both ("yes, no wait")
 }
 
 function hideSheet() {
+  $("sheet-voice").hidden = true;
   els.sheet.hidden = true;
   els.backdrop.hidden = true;
   openConfirm = null;
@@ -319,8 +346,12 @@ speedPick.addEventListener("change", () => {
   speak("This is my new speed.");
 });
 
-function speak(text) {
-  if (!speakReplies || !("speechSynthesis" in window)) { setState("idle"); return; }
+function speak(text, then) {
+  if (!speakReplies || !("speechSynthesis" in window)) {
+    setState(openConfirm ? "confirming" : "idle");
+    if (then) then();
+    return;
+  }
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   if (voice) { u.voice = voice; u.lang = voice.lang; }
@@ -331,6 +362,7 @@ function speak(text) {
     speaking = false;
     updateSendButton();
     setState(openConfirm ? "confirming" : busy ? "thinking" : "idle");
+    if (then) then();
   };
   speechSynthesis.speak(u);
 }
@@ -347,15 +379,70 @@ if (Recognition) {
   rec.lang = "en-US";
   rec.interimResults = true;
   let finalText = "";
-  rec.onstart = () => { finalText = ""; setState("listening"); els.heard.classList.remove("placeholder"); els.heard.textContent = "Listening…"; };
+  let mode = "ask";               // "ask": a new request; "confirm": answering the card
+  let running = false;
+
+  rec.onstart = () => {
+    running = true;
+    finalText = "";
+    if (mode === "confirm") {
+      setSheetVoice("Listening… say “yes” or “no”.", true);
+    } else {
+      setState("listening"); els.heard.classList.remove("placeholder"); els.heard.textContent = "Listening…";
+    }
+  };
   rec.onresult = (e) => {
     let interim = "";
     for (const r of e.results) (r.isFinal ? (finalText = r[0].transcript) : (interim += r[0].transcript));
-    els.heard.textContent = finalText || interim;
+    if (mode === "confirm") setSheetVoice(`Heard: “${finalText || interim}”`, true);
+    else els.heard.textContent = finalText || interim;
   };
-  rec.onerror = () => setState("idle");
-  rec.onend = () => { if (finalText) send(finalText); else setState(openConfirm ? "confirming" : "idle"); };
-  els.mic.addEventListener("click", () => { if (!busy || openConfirm) { speechSynthesis?.cancel(); rec.start(); } });
+  rec.onerror = (e) => {
+    running = false;
+    if (mode === "confirm" && openConfirm) {
+      setSheetVoice(e.error === "not-allowed"
+        ? "Microphone is blocked. Use the buttons below."
+        : "Tap the mic to answer by voice, or use the buttons below.");
+    } else {
+      setState(openConfirm ? "confirming" : "idle");
+    }
+  };
+  rec.onend = () => {
+    running = false;
+    if (mode === "confirm") {
+      if (!openConfirm) return;                       // card was already answered
+      const decision = finalText ? readAnswer(finalText) : null;
+      if (decision !== null) {
+        els.heard.classList.remove("placeholder");
+        els.heard.textContent = finalText;
+        answer(decision);
+        return;
+      }
+      if (finalText && confirmTries < 1) {            // didn't understand: ask once more
+        confirmTries++;
+        setSheetVoice("Sorry, was that a yes or a no?");
+        speak("Sorry, was that a yes or a no?", () => voiceConfirm.listen());
+        return;
+      }
+      setSheetVoice("Tap the mic to answer by voice, or use the buttons below.");
+      return;
+    }
+    if (finalText) send(finalText); else setState(openConfirm ? "confirming" : "idle");
+  };
+
+  function startListening(m) {
+    if (running) { try { rec.abort(); } catch {} }
+    mode = m;
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    try { rec.start(); } catch { /* already starting */ }
+  }
+
+  voiceConfirm = { listen: () => { if (openConfirm) startListening("confirm"); } };
+  $("sheet-mic").addEventListener("click", () => { confirmTries = 0; voiceConfirm.listen(); });
+  els.mic.addEventListener("click", () => {
+    if (openConfirm) voiceConfirm.listen();
+    else if (!busy) startListening("ask");
+  });
 } else {
   els.mic.disabled = true;
   els.mic.title = "Voice input needs Chrome or Edge. You can type instead.";
