@@ -7,7 +7,7 @@ that restore your targets, explains them, and executes only after you explicitly
 **Ballast does not tell you what to invest in.** It enforces rules you set. Paper trading only.
 
 **Live demo:** https://ballast-demo.netlify.app
-**Video:** (link coming)
+**Video:** (https://youtu.be/Ci6620UWIkI)
 
 ## How it works
 
