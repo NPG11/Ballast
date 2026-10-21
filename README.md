@@ -8,7 +8,9 @@ that restore your targets, explains them, and executes only after you explicitly
 
 **Live demo:** https://ballast-demo.netlify.app
 
-**Video:** (https://youtu.be/Ci6620UWIkI)
+**Video:** https://youtu.be/Ci6620UWIkI
+
+**Try it in 30 seconds:** open the demo in Chrome or Edge, say "How's my portfolio?", then "Rebalance me", then "yes". No account needed: every visitor gets their own demo portfolio.
 
 ## How it works
 
@@ -48,11 +50,12 @@ place an order directly, or trade without an approved proposal.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q                 # 107 tests
+python -m pytest -q                 # 110 tests
 python -m scripts.loop --fake       # full loop offline
 
 cp .env.example .env                # add your Alpaca PAPER keys, then export them
 python -m scripts.seed_alpaca       # market hours only: builds a drifted demo portfolio
+python -m scripts.drift_alpaca      # market hours only: tilts a balanced account off target again
 python -m scripts.loop              # full loop against your paper account
 ```
 
